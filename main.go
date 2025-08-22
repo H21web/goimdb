@@ -3,8 +3,7 @@ package main
 import (
     "log"
     "net/http"
-    "strconv"
-
+    
     "github.com/gin-gonic/gin"
     "github.com/Jisin0/filmigo/imdb"
 )
@@ -13,55 +12,146 @@ type MovieAPI struct {
     imdbClient *imdb.ImdbClient
 }
 
-func NewMovieAPI() *MovieAPI {
-    client := imdb.NewClient()
-    return &MovieAPI{
-        imdbClient: client,
-    }
+type APIResponse struct {
+    Success bool        `json:"success"`
+    Data    interface{} `json:"data,omitempty"`
+    Error   string      `json:"error,omitempty"`
 }
 
 func main() {
-    api := NewMovieAPI()
-    router := setupRoutes(api)
+    client := imdb.NewClient()
+    api := &MovieAPI{imdbClient: client}
     
-    log.Println("Starting Movie Detail API server on port 8080...")
-    log.Fatal(http.ListenAndServe(":8080", router))
-}
-
-func setupRoutes(api *MovieAPI) *gin.Engine {
     router := gin.Default()
     
-    // Middleware for CORS
+    // CORS middleware
     router.Use(func(c *gin.Context) {
         c.Header("Access-Control-Allow-Origin", "*")
         c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         c.Header("Access-Control-Allow-Headers", "Content-Type")
-        
         if c.Request.Method == "OPTIONS" {
             c.AbortWithStatus(204)
             return
         }
         c.Next()
     })
-
-    // API routes
+    
     v1 := router.Group("/api/v1")
     {
-        // Movie endpoints
-        v1.GET("/movie/:id", api.GetMovieByID)
-        v1.GET("/movies/search", api.SearchMovies)
-        
-        // Person endpoints
-        v1.GET("/person/:id", api.GetPersonByID)
-        v1.GET("/persons/search", api.SearchPersons)
-        
-        // Advanced search endpoints
-        v1.POST("/movies/advanced-search", api.AdvancedSearchMovies)
-        v1.POST("/persons/advanced-search", api.AdvancedSearchPersons)
-        
-        // Health check
-        v1.GET("/health", api.HealthCheck)
+        v1.GET("/health", api.healthCheck)
+        v1.GET("/movie/:id", api.getMovie)
+        v1.GET("/person/:id", api.getPerson)
+        v1.GET("/search/movies", api.searchMovies)
+        v1.GET("/search/persons", api.searchPersons)
     }
     
-    return router
+    log.Println("Starting Movie Detail API on port 8080...")
+    log.Fatal(http.ListenAndServe(":8080", router))
+}
+
+func (api *MovieAPI) healthCheck(c *gin.Context) {
+    c.JSON(http.StatusOK, APIResponse{
+        Success: true,
+        Data:    "Movie Detail API is running",
+    })
+}
+
+func (api *MovieAPI) getMovie(c *gin.Context) {
+    movieID := c.Param("id")
+    if movieID == "" {
+        c.JSON(http.StatusBadRequest, APIResponse{
+            Success: false,
+            Error:   "Movie ID is required",
+        })
+        return
+    }
+
+    movie, err := api.imdbClient.GetMovie(movieID)
+    if err != nil {
+        c.JSON(http.StatusNotFound, APIResponse{
+            Success: false,
+            Error:   "Movie not found: " + err.Error(),
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, APIResponse{
+        Success: true,
+        Data:    movie,
+    })
+}
+
+func (api *MovieAPI) getPerson(c *gin.Context) {
+    personID := c.Param("id")
+    if personID == "" {
+        c.JSON(http.StatusBadRequest, APIResponse{
+            Success: false,
+            Error:   "Person ID is required",
+        })
+        return
+    }
+
+    person, err := api.imdbClient.GetPerson(personID)
+    if err != nil {
+        c.JSON(http.StatusNotFound, APIResponse{
+            Success: false,
+            Error:   "Person not found: " + err.Error(),
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, APIResponse{
+        Success: true,
+        Data:    person,
+    })
+}
+
+func (api *MovieAPI) searchMovies(c *gin.Context) {
+    query := c.Query("q")
+    if query == "" {
+        c.JSON(http.StatusBadRequest, APIResponse{
+            Success: false,
+            Error:   "Search query 'q' parameter is required",
+        })
+        return
+    }
+
+    results, err := api.imdbClient.SearchTitles(query)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, APIResponse{
+            Success: false,
+            Error:   "Search failed: " + err.Error(),
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, APIResponse{
+        Success: true,
+        Data:    results,
+    })
+}
+
+func (api *MovieAPI) searchPersons(c *gin.Context) {
+    query := c.Query("q")
+    if query == "" {
+        c.JSON(http.StatusBadRequest, APIResponse{
+            Success: false,
+            Error:   "Search query 'q' parameter is required",
+        })
+        return
+    }
+
+    results, err := api.imdbClient.SearchNames(query)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, APIResponse{
+            Success: false,
+            Error:   "Search failed: " + err.Error(),
+        })
+        return
+    }
+
+    c.JSON(http.StatusOK, APIResponse{
+        Success: true,
+        Data:    results,
+    })
 }
