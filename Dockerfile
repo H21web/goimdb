@@ -5,11 +5,11 @@ WORKDIR /app
 # Copy go.mod first
 COPY go.mod ./
 
-# Download dependencies
+# Download dependencies and create go.sum automatically
 RUN go mod download && go mod tidy
 
-# Copy source code
-COPY *.go ./
+# Copy entire source directory
+COPY . ./
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o movie-api .
