@@ -45,8 +45,14 @@ func main() {
         v1.GET("/search/persons", api.searchPersons)
     }
     
-    log.Println("Starting Movie Detail API on port 8080...")
-    log.Fatal(http.ListenAndServe(":8080", router))
+    // Use PORT environment variable for Render
+    port := "8080"
+    if envPort := gin.Mode(); envPort != "" {
+        port = "8080"
+    }
+    
+    log.Printf("Starting Movie Detail API on port %s...", port)
+    log.Fatal(http.ListenAndServe(":"+port, router))
 }
 
 func (api *MovieAPI) healthCheck(c *gin.Context) {
